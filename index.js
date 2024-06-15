@@ -90,6 +90,23 @@ app.post("/todo", async (req, res) => {
   });
 });
 
+app.get("/todo/:id", async (req, res) => {
+  let query = `SELECT * FROM todo WHERE id = '${req.params.id}'`;
+  let connection = await connectDB();
+  connection
+    .execute(query)
+    .then(([result]) => {
+      connection.end();
+      res.status(200).json({
+        status: true,
+        data: result,
+      });
+    })
+    .catch((err) => {
+      console.log(err);
+    });
+});
+
 app.get("/todo", async (req, res) => {
   let query = "SELECT * FROM todo";
   if (req.query.q) {
@@ -128,6 +145,23 @@ app.patch("/todo/:id/edit", async (req, res) => {
   }
   dueDate = dueDate + " 00:00:00";
   let query = `UPDATE todo SET title = '${title}', body = '${body}', dueDate = '${dueDate}', completed = '${completed}' WHERE id = '${req.params.id}'`;
+  let connection = await connectDB();
+  connection
+    .execute(query)
+    .then(([result]) => {
+      connection.end();
+      res.status(200).json({
+        status: true,
+        data: result.affectedRows,
+      });
+    })
+    .catch((err) => {
+      console.log(err);
+    });
+});
+
+app.delete("/todo/:id", async (req, res) => {
+  let query = `DELETE FROM todo WHERE id = '${req.params.id}'`;
   let connection = await connectDB();
   connection
     .execute(query)
