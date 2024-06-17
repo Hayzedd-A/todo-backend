@@ -1,9 +1,13 @@
 require("dotenv").config();
 const express = require("express");
 const mysql = require("mysql2/promise");
+const bodyParser = require("body-parser");
+const cors = require("cors");
 const uniqid = require("uniqid");
 const app = express();
 app.use(express.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(cors());
 
 let port = process.env.PORT;
 async function connectDB() {
@@ -45,9 +49,10 @@ createTable();
 const insertIntoTable = async (title, body, dueDate) => {
   let connection = await connectDB();
   let id = uniqid.time();
-  let query = `INSERT INTO todo (id, title, body, dueDate) VALUES ('${id}', '${title}', '${body}', '${dueDate}' )`;
+  let query = `INSERT INTO todo (id, title, body, dueDate) VALUES (?, ?, ?, ? )`;
+  let params = [id, title, body, dueDate];
   return connection
-    .execute(query)
+    .execute(query, params)
     .then((result) => {
       connection.end();
       return result;
@@ -61,9 +66,11 @@ const insertIntoTable = async (title, body, dueDate) => {
 // insertIntoTable("title", "body", "2024-09-10 00:00:00");
 
 app.post("/todo", async (req, res) => {
+  console.log(req.body);
   let { title, body, dueDate } = req.body;
   if (!(title && body && dueDate)) {
-    res.status(400).send({
+    res.status(400).json({
+      status: false,
       message: "Title, description and dueDate are required",
     });
     return;
@@ -78,7 +85,8 @@ app.post("/todo", async (req, res) => {
   dueDate = dueDate + " 00:00:00";
   let result = await insertIntoTable(title, body, dueDate);
   if (!result) {
-    res.status(400).send({
+    res.status(400).json({
+      status: false,
       message: "Error occured saving the task",
     });
     return;
@@ -108,6 +116,7 @@ app.get("/todo/:id", async (req, res) => {
 });
 
 app.get("/todo", async (req, res) => {
+  console.log("homepage requested");
   let query = "SELECT * FROM todo";
   if (req.query.q) {
     console.log("its a search operation", req.query.q);
@@ -129,9 +138,11 @@ app.get("/todo", async (req, res) => {
 });
 
 app.patch("/todo/:id/edit", async (req, res) => {
+  console.log(req.body);
   let { title, body, completed, dueDate } = req.body;
-  if (!(title && body && dueDate && completed)) {
-    res.status(400).send({
+  if (!(title && body && dueDate)) {
+    res.status(400).json({
+      status: false,
       message: "Title, description and dueDate are required",
     });
     return;
@@ -144,10 +155,11 @@ app.patch("/todo/:id/edit", async (req, res) => {
     return;
   }
   dueDate = dueDate + " 00:00:00";
-  let query = `UPDATE todo SET title = '${title}', body = '${body}', dueDate = '${dueDate}', completed = '${completed}' WHERE id = '${req.params.id}'`;
+  let query = `UPDATE todo SET title = ?, body = ?, dueDate = ?, completed = ? WHERE id = ?`;
+  let params = [title, body, dueDate, completed, req.params.id];
   let connection = await connectDB();
   connection
-    .execute(query)
+    .execute(query, params)
     .then(([result]) => {
       connection.end();
       res.status(200).json({
