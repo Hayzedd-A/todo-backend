@@ -16,6 +16,7 @@ async function connectDB() {
     const connection = await mysql.createConnection({
       host: process.env.DB_HOST,
       user: process.env.DB_USER,
+      port: process.env.DB_PORT,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
     });
@@ -35,7 +36,7 @@ const createTable = async () => {
   let connection = await connectDB();
   connection
     .execute(
-      "CREATE TABLE IF NOT EXISTS todo (sn INT AUTO_INCREMENT, id VARCHAR(30) PRIMARY KEY, title VARCHAR(255) NOT NULL, body TEXT NOT NULL, completed BOOLEAN, dueDate TIMESTAMP, createdDate TIMESTAMP DEFAULT CURRENT_TIMESTAMP, userID VARCHAR(30), FOREIGN KEY (userID) REFERENCES users(id))"
+      "CREATE TABLE IF NOT EXISTS todo (sn INT AUTO_INCREMENT UNIQUE, id VARCHAR(30) PRIMARY KEY, title VARCHAR(255) NOT NULL, body TEXT NOT NULL, completed BOOLEAN, dueDate TIMESTAMP, createdDate TIMESTAMP DEFAULT CURRENT_TIMESTAMP, userID VARCHAR(30), FOREIGN KEY (userID) REFERENCES users(id))"
     )
     .then(([result]) => {
       //   console.log(result);
@@ -50,7 +51,7 @@ const createUserTable = async () => {
   let connection = await connectDB();
   connection
     .execute(
-      "CREATE TABLE IF NOT EXISTS users (sn INT AUTO_INCREMENT, id VARCHAR(30) PRIMARY KEY, username VARCHAR(255) NOT NULL, email VARCHAR(255) NOT NULL, password VARCHAR(255) NOT NULL)"
+      "CREATE TABLE IF NOT EXISTS users (sn INT AUTO_INCREMENT UNIQUE, id VARCHAR(30) PRIMARY KEY, seasionID VARCHAR(30), username VARCHAR(255) NOT NULL, email VARCHAR(255) NOT NULL, password VARCHAR(255) NOT NULL, password_salt VARCHAR(255) NOT NULL)"
     )
     .then(([result]) => {
       //   console.log(result);first
@@ -115,28 +116,28 @@ app.post("/todo/:id", async (req, res) => {
   });
 });
 
-app.get("/todo/:id", async (req, res) => {
-  let query = `SELECT * FROM todo WHERE userID = '${req.params.id}'`;
-  console.log(query);
-  let connection = await connectDB();
-  connection
-    .execute(query)
-    .then(([result]) => {
-      connection.end();
-      res.status(200).json({
-        status: true,
-        data: result,
-      });
-    })
-    .catch((err) => {
-      console.log(err);
-    });
-});
+// app.get("/todo/:id", async (req, res) => {
+//   let query = `SELECT * FROM todo WHERE userID = '${req.params.id}'`;
+//   console.log(query);
+//   let connection = await connectDB();
+//   connection
+//     .execute(query)
+//     .then(([result]) => {
+//       connection.end();
+//       res.status(200).json({
+//         status: true,
+//         data: result,
+//       });
+//     })
+//     .catch((err) => {
+//       console.log(err);
+//     });
+// });
 
 app.get("/todo/:userID", async (req, res) => {
   console.log("homepage requested");
   let { userID } = req.params;
-  let query = `SELECT * FROM todo WHERE userID = ${userID}`;
+  let query = `SELECT * FROM todo WHERE userID = '${userID}'`;
   if (req.query.q) {
     console.log("its a search operation", req.query.q);
     query = `SELECT * FROM todo WHERE userID = ${userID} and title LIKE '%${req.query.q}%' OR body LIKE '%${req.query.q}%'`;
@@ -156,7 +157,7 @@ app.get("/todo/:userID", async (req, res) => {
     });
 });
 
-app.patch("/todo/:userID/edit/:taskID", async (req, res) => {
+app.patch("/todo/edit/:taskID", async (req, res) => {
   console.log(req.body);
   let { title, body, completed, dueDate } = req.body;
   if (!(title && body && dueDate)) {
@@ -175,7 +176,7 @@ app.patch("/todo/:userID/edit/:taskID", async (req, res) => {
   }
   dueDate = dueDate + " 00:00:00";
   let query = `UPDATE todo SET title = ?, body = ?, dueDate = ?, completed = ? WHERE id = ?`;
-  let params = [title, body, dueDate, completed, req.params.id];
+  let params = [title, body, dueDate, completed, req.params.taskID];
   let connection = await connectDB();
   connection
     .execute(query, params)
