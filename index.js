@@ -34,23 +34,39 @@ const createTable = async () => {
   let connection = await connectDB();
   connection
     .execute(
-      "CREATE TABLE IF NOT EXISTS todo (id VARCHAR(30) PRIMARY KEY, title VARCHAR(255) NOT NULL, body TEXT NOT NULL, completed BOOLEAN, dueDate TIMESTAMP, createdDate TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+      "CREATE TABLE IF NOT EXISTS todo (sn INT AUTO_INCREMENT, id VARCHAR(30) PRIMARY KEY, title VARCHAR(255) NOT NULL, body TEXT NOT NULL, completed BOOLEAN, dueDate TIMESTAMP, createdDate TIMESTAMP DEFAULT CURRENT_TIMESTAMP, userID VARCHAR(30), FOREIGN KEY (userID) REFERENCES users(id))"
     )
     .then(([result]) => {
       //   console.log(result);
-      console.log("Table created or already exist");
+      console.log("Todo Table created or already exist");
     })
     .catch((err) => {
       console.log(err);
     });
 };
+
+const createUserTable = async () => {
+  let connection = await connectDB();
+  connection
+    .execute(
+      "CREATE TABLE IF NOT EXISTS users (sn INT AUTO_INCREMENT, id VARCHAR(30) PRIMARY KEY, username VARCHAR(255) NOT NULL, email VARCHAR(255) NOT NULL, password VARCHAR(255) NOT NULL)"
+    )
+    .then(([result]) => {
+      //   console.log(result);first
+      console.log("User Table created or already exist");
+    })
+    .catch((err) => {
+      console.log(err);
+    });
+};
+createUserTable();
 createTable();
 
-const insertIntoTable = async (title, body, dueDate) => {
+const insertIntoTable = async (title, body, dueDate, userID) => {
   let connection = await connectDB();
   let id = uniqid.time();
-  let query = `INSERT INTO todo (id, title, body, dueDate) VALUES (?, ?, ?, ? )`;
-  let params = [id, title, body, dueDate];
+  let query = `INSERT INTO todo (id, userID, title, body, dueDate) VALUES (?, ?, ?, ?, ? )`;
+  let params = [id, userID, title, body, dueDate];
   return connection
     .execute(query, params)
     .then((result) => {
@@ -65,9 +81,9 @@ const insertIntoTable = async (title, body, dueDate) => {
 };
 // insertIntoTable("title", "body", "2024-09-10 00:00:00");
 
-app.post("/todo", async (req, res) => {
-  console.log(req.body);
+app.post("/todo/:id", async (req, res) => {
   let { title, body, dueDate } = req.body;
+  let userID = req.params.id;
   if (!(title && body && dueDate)) {
     res.status(400).json({
       status: false,
@@ -83,7 +99,7 @@ app.post("/todo", async (req, res) => {
     return;
   }
   dueDate = dueDate + " 00:00:00";
-  let result = await insertIntoTable(title, body, dueDate);
+  let result = await insertIntoTable(title, body, dueDate, userID);
   if (!result) {
     res.status(400).json({
       status: false,
@@ -99,7 +115,8 @@ app.post("/todo", async (req, res) => {
 });
 
 app.get("/todo/:id", async (req, res) => {
-  let query = `SELECT * FROM todo WHERE id = '${req.params.id}'`;
+  let query = `SELECT * FROM todo WHERE userID = '${req.params.id}'`;
+  console.log(query);
   let connection = await connectDB();
   connection
     .execute(query)
@@ -115,12 +132,13 @@ app.get("/todo/:id", async (req, res) => {
     });
 });
 
-app.get("/todo", async (req, res) => {
+app.get("/todo/:userID", async (req, res) => {
   console.log("homepage requested");
-  let query = "SELECT * FROM todo";
+  let { userID } = req.params;
+  let query = `SELECT * FROM todo WHERE userID = ${userID}`;
   if (req.query.q) {
     console.log("its a search operation", req.query.q);
-    query = `SELECT * FROM todo WHERE title LIKE '%${req.query.q}%' OR body LIKE '%${req.query.q}%'`;
+    query = `SELECT * FROM todo WHERE userID = ${userID} and title LIKE '%${req.query.q}%' OR body LIKE '%${req.query.q}%'`;
   }
   let connection = await connectDB();
   connection
@@ -187,4 +205,95 @@ app.delete("/todo/:id", async (req, res) => {
     .catch((err) => {
       console.log(err);
     });
+});
+
+// endpoint for user signin
+app.post("/signin", async (req, res) => {
+  let { username, password } = req.body;
+  if (!(username && password)) {
+    res.status(400).json({
+      status: false,
+      message: "Username and password are required",
+    });
+    return;
+  }
+  let query = `SELECT * FROM users WHERE username = '${username}' AND password = '${password}'`;
+  let connection = await connectDB();
+  connection
+    .execute(query)
+    .then(([result]) => {
+      connection.end();
+      console.log(result);
+      if (result.length) {
+        let data = {
+          id: result[0].id,
+          username: result[0].username,
+          seasionID: result[0].seasionID,
+        };
+        res.status(200).json({
+          status: true,
+          data: data,
+        });
+      } else {
+        res.status(401).json({
+          status: false,
+          message: "Invalid username or password",
+        });
+      }
+    })
+    .catch((err) => {
+      console.log(err);
+    });
+});
+
+// endpoint for user signup
+app.post("/signup", async (req, res) => {
+  console.log(req.body);
+  let { username, email, password } = req.body;
+  if (!(username && email && password)) {
+    res.status(400).json({
+      status: false,
+      message: "email, Username  and password are required",
+    });
+    return;
+  }
+  let query = `SELECT * FROM users WHERE username = '${username}' OR email = '${email}'`;
+  let connection = await connectDB();
+  connection.execute(query).then(async ([result]) => {
+    connection.end();
+    if (result.length) {
+      res.status(400).json({
+        status: false,
+        message: "Username or email already exist",
+      });
+      return;
+    } else {
+      let id = uniqid.time();
+      let seasionID = uniqid("", `-${id}`);
+      query = `INSERT INTO users (id, username, email, password, seasionID) VALUES (?,?,?,?,?)`;
+      let params = [id, username, email, password, seasionID];
+      connection = await connectDB();
+      connection
+        .execute(query, params)
+        .then(([result]) => {
+          // connection.execute
+          connection.end();
+          res.status(201).json({
+            status: true,
+            data: {
+              id: id,
+              username: username,
+              seasionID: seasionID,
+            },
+          });
+        })
+        .catch((err) => {
+          console.log(err);
+          res.status(400).json({
+            status: false,
+            message: "Error occured saving the user",
+          });
+        });
+    }
+  });
 });
