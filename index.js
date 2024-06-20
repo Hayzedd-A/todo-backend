@@ -4,6 +4,7 @@ const mysql = require("mysql2/promise");
 const bodyParser = require("body-parser");
 const cors = require("cors");
 const uniqid = require("uniqid");
+const { hashPassword, verifyPassword } = require("secure-password-hash");
 const app = express();
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -155,7 +156,7 @@ app.get("/todo/:userID", async (req, res) => {
     });
 });
 
-app.patch("/todo/:id/edit", async (req, res) => {
+app.patch("/todo/:userID/edit/:taskID", async (req, res) => {
   console.log(req.body);
   let { title, body, completed, dueDate } = req.body;
   if (!(title && body && dueDate)) {
@@ -217,7 +218,8 @@ app.post("/signin", async (req, res) => {
     });
     return;
   }
-  let query = `SELECT * FROM users WHERE username = '${username}' AND password = '${password}'`;
+  let hashedPassword = hashPassword;
+  let query = `SELECT * FROM users WHERE username = '${username}' `;
   let connection = await connectDB();
   connection
     .execute(query)
@@ -225,15 +227,27 @@ app.post("/signin", async (req, res) => {
       connection.end();
       console.log(result);
       if (result.length) {
-        let data = {
-          id: result[0].id,
-          username: result[0].username,
-          seasionID: result[0].seasionID,
-        };
-        res.status(200).json({
-          status: true,
-          data: data,
-        });
+        let passwordMatch = verifyPassword(
+          password,
+          result[0].password,
+          result[0].password_salt
+        );
+        if (passwordMatch) {
+          let data = {
+            id: result[0].id,
+            username: result[0].username,
+            seasionID: result[0].seasionID,
+          };
+          res.status(200).json({
+            status: true,
+            data: data,
+          });
+        } else {
+          res.status(401).json({
+            status: false,
+            message: "Invalid username or password",
+          });
+        }
       } else {
         res.status(401).json({
           status: false,
@@ -270,8 +284,10 @@ app.post("/signup", async (req, res) => {
     } else {
       let id = uniqid.time();
       let seasionID = uniqid("", `-${id}`);
-      query = `INSERT INTO users (id, username, email, password, seasionID) VALUES (?,?,?,?,?)`;
-      let params = [id, username, email, password, seasionID];
+      let { hash: hashed, salt: salted } = hashPassword(password);
+
+      query = `INSERT INTO users (id, username, email, password, seasionID, password_salt) VALUES (?,?,?,?,?,?)`;
+      let params = [id, username, email, hashed, seasionID, salted];
       connection = await connectDB();
       connection
         .execute(query, params)
