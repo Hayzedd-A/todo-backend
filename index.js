@@ -4,6 +4,7 @@ const mysql = require("mysql2/promise");
 const bodyParser = require("body-parser");
 const cors = require("cors");
 const uniqid = require("uniqid");
+const os = require('os')
 const { hashPassword, verifyPassword } = require("secure-password-hash");
 const app = express();
 app.use(express.json());
@@ -28,10 +29,22 @@ async function connectDB() {
   }
 }
 
-app.listen(port, () => {
-  console.log(`server is running on port ${port}`);
-});
+const server = app.listen(port, () => {
+  const address = server.address();
+  const networkInterfaces = os.networkInterfaces();
+  let host = 'localhost';
 
+  for (const iface of Object.values(networkInterfaces)) {
+    for (const alias of iface) {
+      if (alias.family === 'IPv4' && !alias.internal) {
+        host = alias.address;
+        break;
+      }
+    }
+  }
+
+  console.log(`Server is running at http://${host}:${address.port}`);
+});
 const createTable = async () => {
   let connection = await connectDB();
   connection
