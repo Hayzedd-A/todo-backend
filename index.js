@@ -9,6 +9,7 @@ const app = express();
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cors());
+const os = require("os");
 
 let port = process.env.PORT;
 async function connectDB() {
@@ -28,10 +29,22 @@ async function connectDB() {
   }
 }
 
-app.listen(port, () => {
-  console.log(`server is running on port ${port}`);
-});
+const server = app.listen(port, () => {
+  const address = server.address();
+  const networkInterfaces = os.networkInterfaces();
+  let host = "localhost";
 
+  for (const iface of Object.values(networkInterfaces)) {
+    for (const alias of iface) {
+      if (alias.family === "IPv4" && !alias.internal) {
+        host = alias.address;
+        break;
+      }
+    }
+  }
+
+  console.log(`Server is running at http://${host}:${address.port}`);
+});
 const createTable = async () => {
   let connection = await connectDB();
   connection
@@ -86,34 +99,25 @@ const insertIntoTable = async (title, body, dueDate, userID) => {
 app.post("/todo/:id", async (req, res) => {
   let { title, body, dueDate } = req.body;
   let userID = req.params.id;
-  if (!(title && body && dueDate)) {
+  try {
+    if (!(title && body && dueDate))
+      throw new Error("Title, description and dueDate are required");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate))
+      throw new Error("Date is not in the right format");
+    dueDate = dueDate + " 00:00:00";
+    let result = await insertIntoTable(title, body, dueDate, userID);
+    if (!result) throw new Error("Error occured saving the task");
+    res.status(201).json({
+      status: true,
+      message: "Added successfully",
+      data: result.insertId,
+    });
+  } catch (error) {
     res.status(400).json({
       status: false,
-      message: "Title, description and dueDate are required",
+      message: error.message,
     });
-    return;
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
-    res.status(400).json({
-      status: false,
-      message: "Date is not in the right format",
-    });
-    return;
-  }
-  dueDate = dueDate + " 00:00:00";
-  let result = await insertIntoTable(title, body, dueDate, userID);
-  if (!result) {
-    res.status(400).json({
-      status: false,
-      message: "Error occured saving the task",
-    });
-    return;
-  }
-  res.status(201).json({
-    status: true,
-    message: "Added successfully",
-    data: result.insertId,
-  });
 });
 
 // app.get("/todo/:id", async (req, res) => {

@@ -1,2 +1,4 @@
 node_modules
 .env
+.vercel
+index_new.js
