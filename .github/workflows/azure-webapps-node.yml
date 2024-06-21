@@ -28,6 +28,7 @@ env:
   NODE_VERSION: '14.x'                # set this to the node version to use
   PORT: 3120
   DB_HOST: "mysql-22dfde17-adebayoazeez37-4e0f.j.aivencloud.com"
+  DB_PASSWORD: "AVNS_6L3CfJMnqv4t0pvzOlw"
   DB_PORT: 24205
   DB_USER: "avnadmin"
   DB_NAME: "TodoDB"
