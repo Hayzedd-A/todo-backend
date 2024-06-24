@@ -3,6 +3,7 @@ const express = require("express");
 const mysql = require("mysql2/promise");
 const cors = require("cors");
 const uniqid = require("uniqid");
+const os = require("os");
 const { hashPassword, verifyPassword } = require("secure-password-hash");
 const app = express();
 app.use(express.json());
